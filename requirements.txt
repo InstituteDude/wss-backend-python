@@ -1,5 +1,6 @@
 # Flask and extensions
 flask==3.0.0
+protobuf==3.20.3
 flask-cors==4.0.0
 flask-swagger-ui==4.11.1
 flask-sqlalchemy==3.1.1
@@ -7,6 +8,13 @@ flasgger==0.9.7.1
 
 # Face recognition - REAL MODE (requires Python 3.10-3.12)
 face_recognition==1.3.0
+
+# Anti-spoofing detection (Full Accuracy Mode with DeepFace)
+deepface>=0.0.89
+tf-keras>=2.15.0
+torch>=2.0.0
+torchvision>=0.15.0
+opencv-python-headless>=4.8.0
 
 # HTTP client for Go backend integration
 requests>=2.31.0

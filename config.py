@@ -38,7 +38,7 @@ class Config:
     
     # Go Backend Integration (Main Backend)
     # Python forwards face encodings to Go for storage/verification
-    GO_BACKEND_URL = os.getenv('GO_BACKEND_URL', 'http://localhost:9876')
+    GO_BACKEND_URL = os.getenv('GO_BACKEND_URL', 'https://api-wss.sumapala.co.id')
     GO_API_KEY = os.getenv('GO_API_KEY', '')  # For /api/biometrics/verify endpoint
 
 

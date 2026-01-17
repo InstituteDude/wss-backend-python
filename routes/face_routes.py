@@ -219,10 +219,24 @@ def verify_face():
                 'error': 'Missing required field: image'
             }), 400
         
+        # Get optional liveness flag (for audit)
+        liveness_verified = data.get('liveness_verified', False)
+        
+        # Get optional user_id for 1:1 verification
+        user_id = data.get('user_id', None)
+        
+        # Log liveness status
+        if liveness_verified:
+            print(f"[FaceService] Liveness verified by client (user_id: {user_id})")
+        
         # Verify face
-        result = face_service.verify_face(data['image'])
+        result = face_service.verify_face(data['image'], user_id=user_id)
+        
+        # Add liveness info to result
+        result['liveness_verified'] = liveness_verified
         
         return jsonify(result), 200
+
         
     except Exception as e:
         return jsonify({
@@ -396,5 +410,216 @@ def delete_face_by_user(user_id):
     except Exception as e:
         return jsonify({
             'success': False,
+            'error': str(e)
+        }), 500
+
+
+@face_bp.route('/mouth-liveness', methods=['POST'])
+def check_mouth_liveness():
+    """
+    Check liveness by mouth open/close detection
+    ---
+    tags:
+      - Face
+    summary: Cek liveness dengan deteksi mulut buka/tutup
+    description: |
+      Endpoint anti-spoofing menggunakan deteksi mulut buka/tutup.
+      
+      **Cara kerja:**
+      1. Frontend menampilkan instruksi: "Buka mulut" atau "Tutup mulut"
+      2. User melakukan aksi sesuai instruksi
+      3. Backend mendeteksi posisi facial landmarks mulut
+      4. Jika sesuai = LIVE, tidak sesuai = RETRY
+      
+      **Anti-spoofing:**
+      - Foto tidak bisa buka/tutup mulut sesuai instruksi
+      - Menggunakan dlib facial landmarks yang akurat
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - image
+            - required_state
+          properties:
+            image:
+              type: string
+              description: Base64 encoded image
+            required_state:
+              type: string
+              description: Required mouth state ('open' or 'closed')
+              example: "open"
+    responses:
+      200:
+        description: Mouth liveness result
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            is_live:
+              type: boolean
+            detected_state:
+              type: string
+              description: Detected mouth state (open/closed/neutral)
+            required_state:
+              type: string
+            mouth_ratio:
+              type: number
+              description: Mouth height/width ratio
+            message:
+              type: string
+      400:
+        description: Bad request
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            is_live:
+              type: boolean
+              example: false
+            error:
+              type: string
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'is_live': False,
+                'error': 'No JSON data provided'
+            }), 400
+        
+        if 'image' not in data or 'required_state' not in data:
+            return jsonify({
+                'success': False,
+                'is_live': False,
+                'error': 'Missing required fields: image, required_state'
+            }), 400
+        
+        image = data['image']
+        required_state = data['required_state']
+        
+        # Perform mouth liveness check
+        result = face_service.check_mouth_liveness(image, required_state)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'is_live': False,
+            'error': str(e)
+        }), 500
+
+
+@face_bp.route('/anti-spoof', methods=['POST'])
+def check_anti_spoofing():
+    """
+    Check if image is real or spoofed (photo/screen attack)
+    ---
+    tags:
+      - Face
+    summary: Deteksi anti-spoofing menggunakan AI
+    description: |
+      Endpoint untuk mendeteksi apakah gambar wajah adalah wajah asli atau foto/layar.
+      
+      **Teknologi:**
+      - Menggunakan MiniVision Silent-Face-Anti-Spoofing models
+      - Powered by DeepFace library
+      
+      **Deteksi:**
+      - Foto cetak (printed photos)
+      - Layar HP/monitor (screen display)
+      - Video replay attacks
+      
+      **Return:**
+      - `is_real: true` = Wajah asli
+      - `is_real: false` = SPOOFING terdeteksi!
+    consumes:
+      - application/json
+    produces:
+      - application/json
+    parameters:
+      - in: body
+        name: body
+        required: true
+        schema:
+          type: object
+          required:
+            - image
+          properties:
+            image:
+              type: string
+              description: Base64 encoded image
+    responses:
+      200:
+        description: Anti-spoofing check result
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+            is_real:
+              type: boolean
+              description: True if real face, False if spoofed
+            has_face:
+              type: boolean
+            antispoof_score:
+              type: number
+              description: Confidence score (0-1, higher = more likely real)
+            message:
+              type: string
+      400:
+        description: Bad request
+        schema:
+          type: object
+          properties:
+            success:
+              type: boolean
+              example: false
+            is_real:
+              type: boolean
+              example: false
+            error:
+              type: string
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({
+                'success': False,
+                'is_real': False,
+                'error': 'No JSON data provided'
+            }), 400
+        
+        if 'image' not in data:
+            return jsonify({
+                'success': False,
+                'is_real': False,
+                'error': 'Missing required field: image'
+            }), 400
+        
+        image = data['image']
+        
+        # Perform anti-spoofing check
+        result = face_service.check_anti_spoofing(image)
+        
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'is_real': False,
             'error': str(e)
         }), 500
