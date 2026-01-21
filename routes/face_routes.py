@@ -104,18 +104,31 @@ def register_face():
                     'error': f'Missing required field: {field}'
                 }), 400
         
-        # Extract JWT token from Authorization header (for Go backend)
-        jwt_token = None
-        auth_header = request.headers.get('Authorization', '')
-        if auth_header.startswith('Bearer '):
-            jwt_token = auth_header[7:]  # Remove 'Bearer ' prefix
+        # Extract authentication credentials from request body
+        # Priority: device_api_key (kiosk mode) > jwt_token (user login mode)
+        device_api_key = data.get('device_api_key')  # From kiosk/device app
+        jwt_token = data.get('jwt_token')  # From user login
         
-        # Register face
+        print(f"[DEBUG] device_api_key from body: {'Yes (' + device_api_key[:20] + '...)' if device_api_key else 'None'}")
+        print(f"[DEBUG] jwt_token from body: {'Yes (' + jwt_token[:20] + '...)' if jwt_token else 'None'}")
+        
+        # Fallback to Authorization header
+        if not jwt_token and not device_api_key:
+            auth_header = request.headers.get('Authorization', '')
+            if auth_header.startswith('Bearer '):
+                jwt_token = auth_header[7:]
+                print(f"[DEBUG] jwt_token from header: Yes ({jwt_token[:20]}...)")
+        
+        if not jwt_token and not device_api_key:
+            print("[DEBUG] WARNING: No auth credentials provided! Go backend will reject.")
+        
+        # Register face - pass both, face_service will decide which to use
         result = face_service.register_face(
             base64_image=data['image'],
             user_id=data['user_id'],
             name=data['name'],
-            jwt_token=jwt_token
+            jwt_token=jwt_token,
+            device_api_key=device_api_key
         )
         
         status_code = 200 if result.get('success') else 400
@@ -225,12 +238,14 @@ def verify_face():
         # Get optional user_id for 1:1 verification
         user_id = data.get('user_id', None)
         
-        # Log liveness status
-        if liveness_verified:
-            print(f"[FaceService] Liveness verified by client (user_id: {user_id})")
+        # Get device_api_key for IoT authentication
+        device_api_key = data.get('device_api_key', None)
         
-        # Verify face
-        result = face_service.verify_face(data['image'], user_id=user_id)
+        # Log verification attempt
+        print(f"[FaceRoutes] Verify request - user_id: {user_id}, liveness: {liveness_verified}, api_key: {'Yes' if device_api_key else 'No'}")
+        
+        # Verify face via Go backend IoT endpoint
+        result = face_service.verify_face(data['image'], user_id=user_id, device_api_key=device_api_key)
         
         # Add liveness info to result
         result['liveness_verified'] = liveness_verified
